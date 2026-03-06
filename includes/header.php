@@ -1,8 +1,5 @@
 <?php
-// ============================================================
 // includes/header.php
-// ============================================================
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/app.php';
 
@@ -27,31 +24,25 @@ $role = userRole();
             <span class="brand-icon">🌱</span>
             <span class="brand-text">Before I Grow Up</span>
         </a>
-
         <input type="checkbox" id="nav-toggle" class="nav-toggle-input">
         <label for="nav-toggle" class="nav-hamburger">
             <span></span><span></span><span></span>
         </label>
-
         <ul class="nav-links">
             <li><a href="<?= $base ?>/index.php">Home</a></li>
             <li><a href="<?= $base ?>/supporter/browse_dreams.php">Browse Dreams</a></li>
-
             <?php if (!isLoggedIn()): ?>
                 <li><a href="<?= $base ?>/login.php" class="btn-nav">Login</a></li>
                 <li><a href="<?= $base ?>/register.php" class="btn-nav btn-nav-primary">Register</a></li>
-
             <?php elseif ($role === 'admin'): ?>
                 <li><a href="<?= $base ?>/admin/dashboard.php">Dashboard</a></li>
                 <li><a href="<?= $base ?>/admin/manage_dreams.php">Dreams</a></li>
                 <li><a href="<?= $base ?>/admin/manage_users.php">Users</a></li>
                 <li><a href="<?= $base ?>/logout.php" class="btn-nav">Logout</a></li>
-
             <?php elseif ($role === 'guardian'): ?>
                 <li><a href="<?= $base ?>/guardian/submit_dream.php">Submit Dream</a></li>
                 <li><a href="<?= $base ?>/guardian/my_dreams.php">My Dreams</a></li>
                 <li><a href="<?= $base ?>/logout.php" class="btn-nav">Logout</a></li>
-
             <?php elseif ($role === 'supporter'): ?>
                 <li><a href="<?= $base ?>/supporter/browse_dreams.php">Browse</a></li>
                 <li><a href="<?= $base ?>/supporter/adopt_dream.php">My Support</a></li>
@@ -62,9 +53,7 @@ $role = userRole();
 </nav>
 
 <main class="page-main">
-<?php
-$flash = getFlash();
-if ($flash): ?>
+<?php $flash = getFlash(); if ($flash): ?>
     <div class="flash flash-<?= e($flash['type']) ?>">
         <span><?= e($flash['message']) ?></span>
         <button class="flash-close" onclick="this.parentElement.style.display='none'">×</button>

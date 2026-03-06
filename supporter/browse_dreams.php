@@ -22,7 +22,7 @@ $offset   = ($page - 1) * $perPage;
 
 $categories = ['Skills to Learn','Creative Arts','STEM Exploration','Academic Support',
                'Language Learning','Music and Performance','Technology and Coding','Competition Preparation'];
-$budgets    = ['Under $50','$50-$150','$150-$500','$500+'];
+$budgets    = ['Under ₹500','₹500-₹2,000','₹2,000-₹10,000','₹10,000+'];
 $statuses   = ['Verified','Matched','In Progress','Dream Achieved'];
 
 // Build WHERE clause
