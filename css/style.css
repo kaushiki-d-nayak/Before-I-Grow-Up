@@ -600,7 +600,7 @@ tr:hover td { background: var(--cream); }
 /* ── Footer ─────────────────────────────────────────────────── */
 .site-footer {
     background: var(--ink);
-    color: rgba(255,255,255,.7);
+    color: rgba(255,255,255,.9);
     padding: 4rem 0 0;
 }
 .footer-container {
@@ -613,7 +613,10 @@ tr:hover td { background: var(--cream); }
     padding-bottom: 3rem;
 }
 .footer-brand .brand-text { color: #fff; }
-.footer-tagline { font-size: .875rem; margin-top: .75rem; line-height: 1.6; }
+.footer-tagline { color: rgba(255,255,255,.88); font-size: .875rem; margin-top: .75rem; line-height: 1.6; }
+.footer-contact { color: rgba(255,255,255,.95); font-size: .9rem; margin-top: .75rem; }
+.footer-contact a { color: #FFE4A6; font-weight: 600; }
+.footer-contact a:hover { color: #FFF2CC; text-decoration: underline; }
 .footer-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
 .footer-col h4 {
     font-family: var(--font-display);
@@ -622,14 +625,15 @@ tr:hover td { background: var(--cream); }
     margin-bottom: 1rem;
 }
 .footer-col li { margin-bottom: .5rem; }
-.footer-col a { color: rgba(255,255,255,.6); font-size: .875rem; }
-.footer-col a:hover { color: var(--amber-light); }
+.footer-col a { color: rgba(255,255,255,.86); font-size: .875rem; }
+.footer-col a:hover { color: #FFE4A6; }
 .footer-bottom {
     border-top: 1px solid rgba(255,255,255,.1);
     text-align: center;
     padding: 1.25rem;
     font-size: .8rem;
 }
+.footer-bottom p { color: rgba(255,255,255,.82); }
 
 /* ── Accordion (dream detail toggle) ───────────────────────── */
 .detail-section {
