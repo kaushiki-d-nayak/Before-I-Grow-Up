@@ -14,11 +14,13 @@ if (!isset($base)) {
                 <span class="brand-icon">🌱</span>
                 <span class="brand-text">Before I Grow Up</span>
             </a>
-            <p class="footer-tagline">
-                A safe platform where children share learning dreams and supporters help make them real.
+            <p class="footer-tagline" style="color: #b2ac88">
+                <strong>A safe platform where children share learning dreams and supporters help make them real.</strong>
             </p>
-            <p class="footer-contact">
-                Contact us: <a href="mailto:beforeigrowup@gmail.com">beforeigrowup@gmail.com</a>
+            <p class="footer-contact" style="color: #b2ac88">
+                <strong>Contact us:</strong> <a href="mailto:beforeigrowup@gmail.com"><strong>beforeigrowup@gmail.com</strong></a><br>
+                <strong>Phone:</strong> <a href="tel:+919743295253"><strong>+91 9743295253</strong></a><br>
+                <strong>Place: TMA pai polytechnic , Manipal</strong>
             </p>
         </div>
 

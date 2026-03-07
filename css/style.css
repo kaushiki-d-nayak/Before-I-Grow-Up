@@ -613,9 +613,9 @@ tr:hover td { background: var(--cream); }
     padding-bottom: 3rem;
 }
 .footer-brand .brand-text { color: #fff; }
-.footer-tagline { color: rgba(255,255,255,.88); font-size: .875rem; margin-top: .75rem; line-height: 1.6; }
-.footer-contact { color: rgba(255,255,255,.95); font-size: .9rem; margin-top: .75rem; }
-.footer-contact a { color: #FFE4A6; font-weight: 600; }
+.footer-tagline { color: #fff; font-size: .875rem; margin-top: .75rem; line-height: 1.6; font-weight: 700; }
+.footer-contact { color: #fff; font-size: .9rem; margin-top: .75rem; font-weight: 700; }
+.footer-contact a { color: #fff; font-weight: 700; }
 .footer-contact a:hover { color: #FFF2CC; text-decoration: underline; }
 .footer-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
 .footer-col h4 {
