@@ -23,7 +23,7 @@ $role = function_exists('userRole') ? userRole() : '';
                     <span>Email</span>
                     <strong>beforeigrowup@gmail.com</strong>
                 </a>
-                <a class="footer-contact-card" href="tel:+919743295253">
+                <a class="footer-contact-card" href="tel:+919481085927">
                     <span>Phone</span>
                     <strong>+91 9743295253</strong>
                 </a>
