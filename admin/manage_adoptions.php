@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../includes/mail.php';
 requireRole('admin');
 $pageTitle = 'Manage Adoptions';
 $base = BASE_PATH;
@@ -28,6 +29,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Auto-reject other PENDING requests for same dream
             $db->prepare("UPDATE dream_support SET status='Rejected', rejection_reason='Another supporter was selected for this dream.' WHERE dream_id=? AND id!=? AND status='Pending'")->execute([$did, $sid]);
         }
+
+        // Notify approved supporter with guardian contact
+        $mailStmt = $db->prepare("
+            SELECT ds.support_type,
+                   d.title AS dream_title,
+                   su.name AS supporter_name,
+                   su.email AS supporter_email,
+                   gu.name AS guardian_name,
+                   gu.email AS guardian_email
+            FROM dream_support ds
+            JOIN dreams d ON ds.dream_id = d.id
+            JOIN users su ON ds.supporter_id = su.id
+            JOIN students s ON d.student_id = s.id
+            JOIN users gu ON s.guardian_id = gu.id
+            WHERE ds.id = ?
+            LIMIT 1
+        ");
+        $mailStmt->execute([$sid]);
+        $m = $mailStmt->fetch();
+        if ($m && !empty($m['supporter_email'])) {
+            $supportType = strtolower((string)$m['support_type']);
+            $subject = 'Your adoption is approved - proceed with ' . $supportType;
+            $body = '<p>Hi ' . e($m['supporter_name']) . ',</p>'
+                  . '<p>Your adoption request has been <strong>approved</strong> for this dream:</p>'
+                  . '<p><strong>' . e($m['dream_title']) . '</strong></p>'
+                  . '<p>You can now proceed with the <strong>' . e($m['support_type']) . '</strong>.</p>'
+                  . '<p>Guardian contact details:</p>'
+                  . '<p>Name: <strong>' . e($m['guardian_name']) . '</strong><br>'
+                  . 'Email: <a href="mailto:' . e($m['guardian_email']) . '">' . e($m['guardian_email']) . '</a></p>'
+                  . '<p>With care,<br>' . APP_NAME . ' team</p>';
+            if (!sendEmail($m['supporter_email'], $subject, $body)) {
+                error_log('Supporter approval email failed for support_id: ' . $sid);
+            }
+        }
+
         $db->prepare("INSERT INTO admin_logs(admin_id,action) VALUES(?,?)")->execute([$_SESSION['user_id'], "Approved supporter #$sid for dream #$did"]);
         setFlash('success', '✅ Supporter approved! Dream is now Matched.');
         redirect($base . '/admin/manage_adoptions.php');

@@ -4,10 +4,12 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../includes/mail.php';
+require_once __DIR__ . '/../includes/dream_achievement.php';
 requireRole('admin');
 $pageTitle = 'Manage Dreams';
 $base = BASE_PATH;
 $db   = getDB();
+ensureDreamAchievementSchema($db);
 
 // ── Handle REJECT ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reject_dream') {
@@ -20,13 +22,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rejec
     redirect($base . '/admin/manage_dreams.php' . (isset($_GET['filter']) ? '?filter='.urlencode($_GET['filter']) : ''));
 }
 
-// ── Handle STATUS UPDATE ─────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_dream') {
+    $dreamId = (int)($_POST['dream_id'] ?? 0);
+    if ($dreamId > 0) {
+        try {
+            $db->beginTransaction();
+            $db->prepare("DELETE FROM dream_achievement_confirmations WHERE dream_id=?")->execute([$dreamId]);
+            $db->prepare("DELETE FROM dream_support WHERE dream_id=?")->execute([$dreamId]);
+            $db->prepare("DELETE FROM dreams WHERE id=?")->execute([$dreamId]);
+            $db->prepare("INSERT INTO admin_logs (admin_id,action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Deleted dream #$dreamId"]);
+            $db->commit();
+            setFlash('success', 'Dream deleted successfully.');
+        } catch (Exception $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            setFlash('error', 'Unable to delete dream right now. Please try again.');
+        }
+    } else {
+        setFlash('error', 'Invalid dream id.');
+    }
+    redirect($base . '/admin/manage_dreams.php' . (isset($_GET['filter']) ? '?filter='.urlencode($_GET['filter']) : ''));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'request_achievement_confirmation') {
+    $dreamId = (int)$_POST['dream_id'];
+    $infoStmt = $db->prepare("
+        SELECT d.id, d.title, d.status, s.student_email, u.email AS guardian_email, u.name AS guardian_name
+        FROM dreams d
+        JOIN students s ON d.student_id = s.id
+        JOIN users u ON s.guardian_id = u.id
+        WHERE d.id = ?
+        LIMIT 1
+    ");
+    $infoStmt->execute([$dreamId]);
+    $dreamInfo = $infoStmt->fetch();
+
+    if (!$dreamInfo) {
+        setFlash('error', 'Dream not found.');
+    } elseif (in_array($dreamInfo['status'], ['Submitted', 'Rejected'], true)) {
+        setFlash('error', 'This dream is not eligible for completion confirmation yet.');
+    } else {
+        $recipientEmail = !empty($dreamInfo['student_email']) ? $dreamInfo['student_email'] : $dreamInfo['guardian_email'];
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', time() + (14 * 24 * 60 * 60));
+        saveDreamAchievementRequest($db, $dreamId, (int)$_SESSION['user_id'], $recipientEmail, $token, $expiresAt);
+
+        $confirmUrl = appUrl('confirm_dream_achievement.php?token=' . urlencode($token));
+        $subject = 'Please confirm dream completion';
+        $body = '<p>Hi ' . e($dreamInfo['guardian_name']) . ',</p>'
+              . '<p>Our team received a completion update for this dream:</p>'
+              . '<p><strong>' . e($dreamInfo['title']) . '</strong></p>'
+              . '<p>Please confirm with the student and click the link below only if this dream has been completed.</p>'
+              . '<p><a href="' . e($confirmUrl) . '">' . e($confirmUrl) . '</a></p>'
+              . '<p>This link expires in 14 days.</p>'
+              . '<p>With care,<br>' . APP_NAME . ' team</p>';
+
+        if (sendEmail($recipientEmail, $subject, $body)) {
+            $db->prepare("INSERT INTO admin_logs (admin_id,action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Sent achievement confirmation request for dream #$dreamId"]);
+            $sentTo = !empty($dreamInfo['student_email']) ? 'student' : 'guardian';
+            setFlash('success', 'Confirmation email sent to the ' . $sentTo . '.');
+        } else {
+            setFlash('error', 'Could not send confirmation email right now. Please try again.');
+        }
+    }
+    redirect($base . '/admin/manage_dreams.php' . (isset($_GET['filter']) ? '?filter='.urlencode($_GET['filter']) : ''));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
     $dreamId   = (int)$_POST['dream_id'];
     $newStatus = $_POST['new_status'] ?? '';
     $valid     = ['Submitted','Verified','Matched','In Progress','Dream Achieved'];
-    if (in_array($newStatus, $valid)) {
-        // Fetch guardian + current status for notifications
+
+    if (in_array($newStatus, $valid, true)) {
         $infoStmt = $db->prepare("
             SELECT d.title, d.status AS old_status, u.email, u.name
             FROM dreams d
@@ -36,41 +102,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         ");
         $infoStmt->execute([$dreamId]);
         $dreamInfo = $infoStmt->fetch();
+        $confirmation = getDreamAchievementConfirmation($db, $dreamId);
 
-        $db->prepare("UPDATE dreams SET status=?, rejection_reason=NULL WHERE id=?")->execute([$newStatus, $dreamId]);
-        $db->prepare("INSERT INTO admin_logs (admin_id,action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Dream #$dreamId → $newStatus"]);
-        setFlash('success', 'Dream status updated to "' . $newStatus . '".');
+        if ($newStatus === 'Dream Achieved' && (!$confirmation || empty($confirmation['confirmed_at']))) {
+            setFlash('error', 'Student confirmation is required before setting this dream to Dream Achieved.');
+        } else {
+            $db->prepare("UPDATE dreams SET status=?, rejection_reason=NULL WHERE id=?")->execute([$newStatus, $dreamId]);
+            $db->prepare("INSERT INTO admin_logs (admin_id,action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Dream #$dreamId -> $newStatus"]);
+            setFlash('success', 'Dream status updated to "' . $newStatus . '".');
 
-        if ($dreamInfo && !empty($dreamInfo['email'])) {
-            $guardianEmail = $dreamInfo['email'];
-            $guardianName  = $dreamInfo['name'];
-            $title         = $dreamInfo['title'];
-            $oldStatus     = $dreamInfo['old_status'];
+            if ($dreamInfo && !empty($dreamInfo['email'])) {
+                $guardianEmail = $dreamInfo['email'];
+                $guardianName  = $dreamInfo['name'];
+                $title         = $dreamInfo['title'];
+                $oldStatus     = $dreamInfo['old_status'];
 
-            // Notify guardian when dream is approved (Verified)
-            if ($newStatus === 'Verified' && $oldStatus !== 'Verified') {
-                $subject = 'Your dream has been approved ✅';
-                $body    = '<p>Hi ' . e($guardianName) . ',</p>'
-                         . '<p>Your dream "<strong>' . e($title) . '</strong>" has been <strong>approved</strong> by our team and is now visible for supporters to discover and adopt.</p>'
-                         . '<p>You can review the status of all your dreams anytime from your guardian dashboard.</p>'
-                         . '<p>With care,<br>' . APP_NAME . ' team</p>';
-                sendEmail($guardianEmail, $subject, $body);
-            }
-
-            // Notify guardian / student when dream is completed
-            if ($newStatus === 'Dream Achieved') {
-                $subject = 'Dream completed — please confirm 🎉';
-                $body    = '<p>Hi ' . e($guardianName) . ',</p>'
-                         . '<p>Wonderful news! The dream "<strong>' . e($title) . '</strong>" has been marked as <strong>Dream Achieved</strong> in our system.</p>'
-                         . '<p>Please talk with the student and confirm that the dream has truly been completed. If anything doesn\'t look right, reply to this email or contact the platform admin.</p>'
-                         . '<p>Thank you for supporting the student\'s journey.<br>' . APP_NAME . ' team</p>';
-                sendEmail($guardianEmail, $subject, $body);
+                if ($newStatus === 'Verified' && $oldStatus !== 'Verified') {
+                    $subject = 'Your dream has been approved';
+                    $body    = '<p>Hi ' . e($guardianName) . ',</p>'
+                             . '<p>Your dream "<strong>' . e($title) . '</strong>" has been <strong>approved</strong> by our team and is now visible for supporters to discover and adopt.</p>'
+                             . '<p>You can review the status of all your dreams anytime from your guardian dashboard.</p>'
+                             . '<p>With care,<br>' . APP_NAME . ' team</p>';
+                    sendEmail($guardianEmail, $subject, $body);
+                }
             }
         }
     }
+
     redirect($base . '/admin/manage_dreams.php' . (isset($_GET['filter']) ? '?filter='.urlencode($_GET['filter']) : ''));
 }
-
 // ── Filters ──────────────────────────────────────────────────
 $filterStatus   = $_GET['filter']   ?? '';
 $filterCategory = $_GET['category'] ?? '';
@@ -82,9 +142,14 @@ if ($filterCategory) { $where .= " AND d.category=?"; $params[] = $filterCategor
 if ($search) { $where .= " AND (d.title LIKE ? OR d.description LIKE ?)"; $params[] = "%$search%"; $params[] = "%$search%"; }
 
 $stmt = $db->prepare("
-    SELECT d.*, s.city, s.age_group, u.name AS guardian_name, u.email AS guardian_email,
+    SELECT d.*, s.city, s.age_group, s.student_email, u.name AS guardian_name, u.email AS guardian_email,
+           dac.requested_at AS completion_requested_at,
+           dac.confirmed_at AS completion_confirmed_at,
            (SELECT COUNT(*) FROM dream_support ds WHERE ds.dream_id=d.id) AS support_count
-    FROM dreams d JOIN students s ON d.student_id=s.id JOIN users u ON s.guardian_id=u.id
+    FROM dreams d
+    JOIN students s ON d.student_id=s.id
+    JOIN users u ON s.guardian_id=u.id
+    LEFT JOIN dream_achievement_confirmations dac ON dac.dream_id = d.id
     $where
     ORDER BY CASE d.status WHEN 'Submitted' THEN 0 WHEN 'Rejected' THEN 1 ELSE 2 END, d.created_at DESC
 ");
@@ -257,7 +322,10 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     <?php else: ?>
       <?php foreach($dreams as $d):
-        $isRej = $d['status']==='Rejected'; $isSub = $d['status']==='Submitted';
+        $isRej = $d['status']==='Rejected';
+        $isSub = $d['status']==='Submitted';
+        $isConfirmed = !empty($d['completion_confirmed_at']);
+        $isRequested = !empty($d['completion_requested_at']);
         $cls = $isRej?'rej':($isSub?'sub':'');
         $slug = str_replace([' '],'-',$d['status']);
       ?>
@@ -265,23 +333,29 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="dc-wrap">
           <div class="dc-info">
             <div class="chips">
-              <span class="chip">📂 <?= e($d['category']) ?></span>
+              <span class="chip"><?= e($d['category']) ?></span>
               <span class="bdg bdg-<?= $slug ?>"><?= e($d['status']) ?></span>
-              <?php if($d['support_count']>0):?><span class="chip">💛 <?= $d['support_count'] ?> supporter(s)</span><?php endif;?>
+              <?php if($d['support_count']>0):?><span class="chip"><?= $d['support_count'] ?> supporter(s)</span><?php endif;?>
+              <?php if($isConfirmed): ?>
+                <span class="chip" style="background:#ECFDF5;border-color:#BBF7D0;color:#166534;">Completion confirmed</span>
+              <?php elseif($isRequested): ?>
+                <span class="chip" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;">Completion confirmation pending</span>
+              <?php endif; ?>
             </div>
             <h4><?= e($d['title']) ?></h4>
-            <p><?= e(mb_substr($d['description'],0,180)) ?><?= mb_strlen($d['description'])>180?'…':''?></p>
+            <p><?= e(mb_substr($d['description'],0,180)) ?><?= mb_strlen($d['description'])>180?'...':''?></p>
             <div class="dc-meta">
-              <span>👤 <?= e($d['guardian_name']) ?></span>
-              <span>📧 <?= e($d['guardian_email']) ?></span>
-              <span>📍 <?= e($d['city']) ?></span>
-              <span>🎂 Age <?= e($d['age_group']) ?></span>
-              <span>💰 <?= e($d['budget_range']) ?></span>
-              <span>🗓️ <?= date('M j, Y', strtotime($d['created_at'])) ?></span>
+              <span><?= e($d['guardian_name']) ?></span>
+              <span><?= e($d['guardian_email']) ?></span>
+              <?php if(!empty($d['student_email'])): ?><span><?= e($d['student_email']) ?></span><?php endif; ?>
+              <span><?= e($d['city']) ?></span>
+              <span>Age <?= e($d['age_group']) ?></span>
+              <span><?= e($d['budget_range']) ?></span>
+              <span><?= date('M j, Y', strtotime($d['created_at'])) ?></span>
             </div>
             <?php if($isRej && $d['rejection_reason']): ?>
             <div class="rej-notice">
-              <strong>❌ Rejection Reason (visible to guardian):</strong>
+              <strong>Rejection Reason (visible to guardian):</strong>
               <p><?= e($d['rejection_reason']) ?></p>
             </div>
             <?php endif; ?>
@@ -289,22 +363,47 @@ require_once __DIR__ . '/../includes/header.php';
 
           <div class="dc-actions">
             <?php if($isSub): ?>
-              <form method="POST"><input type="hidden" name="action" value="update_status"><input type="hidden" name="dream_id" value="<?=(int)$d['id']?>"><input type="hidden" name="new_status" value="Verified"><button type="submit" class="btn-v">✅ Verify Dream</button></form>
-              <button class="btn-r" onclick="openModal(<?=(int)$d['id']?>,<?=htmlspecialchars(json_encode($d['title']),ENT_QUOTES)?> )">❌ Reject Dream</button>
+              <form method="POST"><input type="hidden" name="action" value="update_status"><input type="hidden" name="dream_id" value="<?=(int)$d['id']?>"><input type="hidden" name="new_status" value="Verified"><button type="submit" class="btn-v">Verify Dream</button></form>
+              <button class="btn-r" onclick="openModal(<?=(int)$d['id']?>,<?=htmlspecialchars(json_encode($d['title']),ENT_QUOTES)?> )">Reject Dream</button>
+              <form method="POST" onsubmit="return confirm('Delete this dream permanently? This cannot be undone.');">
+                <input type="hidden" name="action" value="delete_dream">
+                <input type="hidden" name="dream_id" value="<?=(int)$d['id']?>">
+                <button type="submit" class="btn-r">Delete Dream</button>
+              </form>
             <?php elseif($isRej): ?>
-              <form method="POST"><input type="hidden" name="action" value="update_status"><input type="hidden" name="dream_id" value="<?=(int)$d['id']?>"><input type="hidden" name="new_status" value="Verified"><button type="submit" class="btn-v">↩️ Re-verify Dream</button></form>
+              <form method="POST"><input type="hidden" name="action" value="update_status"><input type="hidden" name="dream_id" value="<?=(int)$d['id']?>"><input type="hidden" name="new_status" value="Verified"><button type="submit" class="btn-v">Re-verify Dream</button></form>
+              <form method="POST" onsubmit="return confirm('Delete this dream permanently? This cannot be undone.');">
+                <input type="hidden" name="action" value="delete_dream">
+                <input type="hidden" name="dream_id" value="<?=(int)$d['id']?>">
+                <button type="submit" class="btn-r">Delete Dream</button>
+              </form>
             <?php else: ?>
               <form method="POST">
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="dream_id" value="<?=(int)$d['id']?>">
                 <select name="new_status" style="width:100%;padding:.4rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.8rem;background:#fff;margin-bottom:.4rem">
-                  <?php foreach(['Verified','Matched','In Progress','Dream Achieved'] as $s): ?>
+                  <?php foreach(['Verified','Matched','In Progress'] as $s): ?>
                     <option value="<?=e($s)?>" <?=$d['status']===$s?'selected':''?>><?=e($s)?></option>
                   <?php endforeach; ?>
+                  <?php if($isConfirmed): ?>
+                    <option value="Dream Achieved" <?=$d['status']==='Dream Achieved'?'selected':''?>>Dream Achieved</option>
+                  <?php endif; ?>
                 </select>
                 <button type="submit" class="btn-st">Update Status</button>
               </form>
-              <button class="btn-r" onclick="openModal(<?=(int)$d['id']?>,<?=htmlspecialchars(json_encode($d['title']),ENT_QUOTES)?> )">❌ Reject</button>
+              <?php if($d['status'] !== 'Dream Achieved'): ?>
+              <form method="POST">
+                <input type="hidden" name="action" value="request_achievement_confirmation">
+                <input type="hidden" name="dream_id" value="<?=(int)$d['id']?>">
+                <button type="submit" class="btn-v"><?= $isRequested ? 'Resend Completion Email' : 'Send Completion Email' ?></button>
+              </form>
+              <?php endif; ?>
+              <button class="btn-r" onclick="openModal(<?=(int)$d['id']?>,<?=htmlspecialchars(json_encode($d['title']),ENT_QUOTES)?> )">Reject</button>
+              <form method="POST" onsubmit="return confirm('Delete this dream permanently? This cannot be undone.');">
+                <input type="hidden" name="action" value="delete_dream">
+                <input type="hidden" name="dream_id" value="<?=(int)$d['id']?>">
+                <button type="submit" class="btn-r">Delete Dream</button>
+              </form>
             <?php endif; ?>
           </div>
         </div>

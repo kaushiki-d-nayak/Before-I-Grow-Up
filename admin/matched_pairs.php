@@ -1,21 +1,71 @@
-<?php
-// admin/matched_pairs.php — All confirmed dream–supporter matches with progress tracking
+﻿<?php
+// admin/matched_pairs.php — All confirmed dream-supporter matches with progress tracking
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../includes/mail.php';
+require_once __DIR__ . '/../includes/dream_achievement.php';
 
 requireRole('admin');
 $pageTitle = 'Matched Pairs';
 $base = BASE_PATH;
 $db   = getDB();
+ensureDreamAchievementSchema($db);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'request_achievement_confirmation') {
+    $dreamId = (int)$_POST['dream_id'];
+    $infoStmt = $db->prepare("
+        SELECT d.id, d.title, d.status, s.student_email, gu.email AS guardian_email, gu.name AS guardian_name
+        FROM dreams d
+        JOIN students s ON d.student_id = s.id
+        JOIN users gu ON s.guardian_id = gu.id
+        WHERE d.id = ?
+        LIMIT 1
+    ");
+    $infoStmt->execute([$dreamId]);
+    $dreamInfo = $infoStmt->fetch();
+
+    if (!$dreamInfo) {
+        setFlash('error', 'Dream not found.');
+    } else {
+        $recipientEmail = !empty($dreamInfo['student_email']) ? $dreamInfo['student_email'] : $dreamInfo['guardian_email'];
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', time() + (14 * 24 * 60 * 60));
+        saveDreamAchievementRequest($db, $dreamId, (int)$_SESSION['user_id'], $recipientEmail, $token, $expiresAt);
+
+        $confirmUrl = appUrl('confirm_dream_achievement.php?token=' . urlencode($token));
+        $subject = 'Please confirm dream completion';
+        $body = '<p>Hi ' . e($dreamInfo['guardian_name']) . ',</p>'
+              . '<p>Our team received a completion update for this dream:</p>'
+              . '<p><strong>' . e($dreamInfo['title']) . '</strong></p>'
+              . '<p>Please confirm with the student and click the link below only if this dream has been completed.</p>'
+              . '<p><a href="' . e($confirmUrl) . '">' . e($confirmUrl) . '</a></p>'
+              . '<p>This link expires in 14 days.</p>'
+              . '<p>With care,<br>' . APP_NAME . ' team</p>';
+
+        if (sendEmail($recipientEmail, $subject, $body)) {
+            setFlash('success', 'Completion confirmation email sent.');
+        } else {
+            setFlash('error', 'Could not send confirmation email right now. Please try again.');
+        }
+    }
+
+    redirect($base . '/admin/matched_pairs.php');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['dream_id'], $_POST['new_status'])) {
     $dreamId   = (int)$_POST['dream_id'];
     $newStatus = $_POST['new_status'];
-    if (in_array($newStatus, ['Matched','In Progress','Dream Achieved'])) {
-        $db->prepare("UPDATE dreams SET status=? WHERE id=?")->execute([$newStatus, $dreamId]);
-        $db->prepare("INSERT INTO admin_logs (admin_id, action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Updated dream #$dreamId to '$newStatus'"]);
-        setFlash('success', 'Progress updated to "' . $newStatus . '".');
+
+    if (in_array($newStatus, ['Matched','In Progress','Dream Achieved'], true)) {
+        $confirmation = getDreamAchievementConfirmation($db, $dreamId);
+        if ($newStatus === 'Dream Achieved' && (!$confirmation || empty($confirmation['confirmed_at']))) {
+            setFlash('error', 'Student confirmation is required before setting Dream Achieved.');
+        } else {
+            $db->prepare("UPDATE dreams SET status=? WHERE id=?")->execute([$newStatus, $dreamId]);
+            $db->prepare("INSERT INTO admin_logs (admin_id, action) VALUES (?,?)")->execute([$_SESSION['user_id'], "Updated dream #$dreamId to '$newStatus'"]);
+            setFlash('success', 'Progress updated to "' . $newStatus . '".');
+        }
     }
     redirect($base . '/admin/matched_pairs.php');
 }
@@ -37,14 +87,17 @@ $stmt = $db->prepare("
            d.id AS dream_id, d.title, d.category, d.status AS dream_status, d.description, d.budget_range,
            u.name AS supporter_name, u.email AS supporter_email,
            sp.profession,
-           s.city, s.age_group,
-           gu.name AS guardian_name, gu.email AS guardian_email
+           s.city, s.age_group, s.student_email,
+           gu.name AS guardian_name, gu.email AS guardian_email,
+           dac.requested_at AS completion_requested_at,
+           dac.confirmed_at AS completion_confirmed_at
     FROM dream_support ds
     JOIN dreams d ON ds.dream_id=d.id
     JOIN users u ON ds.supporter_id=u.id
     LEFT JOIN supporters sp ON sp.user_id=u.id
     JOIN students s ON d.student_id=s.id
     JOIN users gu ON s.guardian_id=gu.id
+    LEFT JOIN dream_achievement_confirmations dac ON dac.dream_id = d.id
     $where
     ORDER BY CASE d.status WHEN 'In Progress' THEN 0 WHEN 'Matched' THEN 1 WHEN 'Dream Achieved' THEN 2 ELSE 3 END, ds.created_at DESC
 ");
@@ -53,9 +106,9 @@ $pairs = $stmt->fetchAll();
 
 $categories = ['Skills to Learn','Creative Arts','STEM Exploration','Academic Support',
                'Language Learning','Music and Performance','Technology and Coding','Competition Preparation','Others'];
-$catIcons   = ['Skills to Learn'=>'🛠️','Creative Arts'=>'🎨','STEM Exploration'=>'🔬','Academic Support'=>'📚',
-               'Language Learning'=>'🗣️','Music and Performance'=>'🎵','Technology and Coding'=>'💻',
-               'Competition Preparation'=>'🏆','Others'=>'✨'];
+$catIcons   = ['Skills to Learn'=>'???','Creative Arts'=>'??','STEM Exploration'=>'??','Academic Support'=>'??',
+               'Language Learning'=>'???','Music and Performance'=>'??','Technology and Coding'=>'??',
+               'Competition Preparation'=>'??','Others'=>'?'];
 $totalMatched    = $db->query("SELECT COUNT(*) FROM dream_support WHERE status='Approved'")->fetchColumn();
 $inProgressCount = $db->query("SELECT COUNT(*) FROM dreams d JOIN dream_support ds ON ds.dream_id=d.id WHERE ds.status='Approved' AND d.status='In Progress'")->fetchColumn();
 $achievedCount   = $db->query("SELECT COUNT(*) FROM dreams d JOIN dream_support ds ON ds.dream_id=d.id WHERE ds.status='Approved' AND d.status='Dream Achieved'")->fetchColumn();
@@ -135,28 +188,28 @@ require_once __DIR__ . '/../includes/header.php';
   <aside class="adm-sb" id="adSb">
     <div class="adm-sb-title">Before I Grow Up</div>
     <nav>
-      <a href="<?= $base ?>/admin/dashboard.php" class="sb-link"><span class="sb-ico">📊</span> Dashboard</a>
-      <a href="<?= $base ?>/admin/manage_dreams.php" class="sb-link"><span class="sb-ico">🌟</span> Manage Dreams</a>
-      <a href="<?= $base ?>/admin/manage_adoptions.php" class="sb-link"><span class="sb-ico">🤝</span> Adoptions
+      <a href="<?= $base ?>/admin/dashboard.php" class="sb-link"><span class="sb-ico">ðŸ“Š</span> Dashboard</a>
+      <a href="<?= $base ?>/admin/manage_dreams.php" class="sb-link"><span class="sb-ico">ðŸŒŸ</span> Manage Dreams</a>
+      <a href="<?= $base ?>/admin/manage_adoptions.php" class="sb-link"><span class="sb-ico">ðŸ¤</span> Adoptions
         <?php if($pendingAdoptions>0):?><span class="sb-num"><?=$pendingAdoptions?></span><?php endif;?></a>
-      <a href="<?= $base ?>/admin/matched_pairs.php" class="sb-link act"><span class="sb-ico">✅</span> Matched Pairs</a>
-      <a href="<?= $base ?>/admin/manage_users.php" class="sb-link"><span class="sb-ico">👥</span> Users</a>
-      <a href="<?= $base ?>/supporter/browse_dreams.php" class="sb-link"><span class="sb-ico">🌐</span> Public View</a>
-      <a href="<?= $base ?>/logout.php" class="sb-link" style="margin-top:2rem;border-top:1px solid rgba(255,255,255,.1);padding-top:1rem;"><span class="sb-ico">🚪</span> Logout</a>
+      <a href="<?= $base ?>/admin/matched_pairs.php" class="sb-link act"><span class="sb-ico">âœ…</span> Matched Pairs</a>
+      <a href="<?= $base ?>/admin/manage_users.php" class="sb-link"><span class="sb-ico">ðŸ‘¥</span> Users</a>
+      <a href="<?= $base ?>/supporter/browse_dreams.php" class="sb-link"><span class="sb-ico">ðŸŒ</span> Public View</a>
+      <a href="<?= $base ?>/logout.php" class="sb-link" style="margin-top:2rem;border-top:1px solid rgba(255,255,255,.1);padding-top:1rem;"><span class="sb-ico">ðŸšª</span> Logout</a>
     </nav>
   </aside>
   <div class="sb-overlay" id="sbOv" onclick="closeSb()"></div>
 
   <main class="adm-main">
     <div class="adm-hdr">
-      <h1>✅ Matched Pairs</h1>
+      <h1>âœ… Matched Pairs</h1>
       <p>All dreams successfully matched with a mentor or sponsor. Track and update their progress here.</p>
     </div>
 
     <div class="stat-row">
       <div class="stat-pill"><div class="stat-pill-n" style="color:#7C3AED"><?=$totalMatched?></div><div class="stat-pill-l">Total Matched</div></div>
       <div class="stat-pill"><div class="stat-pill-n" style="color:#EA580C"><?=$inProgressCount?></div><div class="stat-pill-l">In Progress</div></div>
-      <div class="stat-pill"><div class="stat-pill-n" style="color:#059669"><?=$achievedCount?></div><div class="stat-pill-l">Achieved 🏆</div></div>
+      <div class="stat-pill"><div class="stat-pill-n" style="color:#059669"><?=$achievedCount?></div><div class="stat-pill-l">Achieved ðŸ†</div></div>
     </div>
 
     <form method="GET" class="filter-bar">
@@ -181,13 +234,15 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php if(empty($pairs)): ?>
       <div class="empty-box">
-        <div style="font-size:2.5rem;margin-bottom:.5rem">🌱</div>
+        <div style="font-size:2.5rem;margin-bottom:.5rem">ðŸŒ±</div>
         <p style="font-weight:600;color:#374151;margin:.2rem 0">No matched pairs yet</p>
         <p style="font-size:.85rem;margin:0">Approve adoption requests to create matches.</p>
       </div>
     <?php else: ?>
       <?php foreach($pairs as $p):
-        $icon = $catIcons[$p['category']] ?? '🌟';
+        $icon = $catIcons[$p['category']] ?? '[Dream]';
+        $isConfirmed = !empty($p['completion_confirmed_at']);
+        $isRequested = !empty($p['completion_requested_at']);
         $cls = $p['dream_status']==='Dream Achieved' ? 'achieved' : '';
         $stepColors = ['Matched'=>'#7C3AED','In Progress'=>'#EA580C','Dream Achieved'=>'#059669'];
         $stepList = ['Matched','In Progress','Dream Achieved'];
@@ -198,16 +253,21 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="pc-top">
           <div class="pc-dream">
             <?php if($p['dream_status']==='Dream Achieved'): ?>
-              <div style="font-size:.75rem;color:#059669;font-weight:700;margin-bottom:.3rem;letter-spacing:.04em">🏆 DREAM ACHIEVED!</div>
+              <div style="font-size:.75rem;color:#059669;font-weight:700;margin-bottom:.3rem;letter-spacing:.04em">ðŸ† DREAM ACHIEVED!</div>
             <?php endif; ?>
             <h3><?= $icon ?> <?= e($p['title']) ?></h3>
-            <p><?= e(mb_substr($p['description'],0,130)) ?><?= mb_strlen($p['description'])>130?'…':'' ?></p>
+            <p><?= e(mb_substr($p['description'],0,130)) ?><?= mb_strlen($p['description'])>130?'â€¦':'' ?></p>
             <div class="chips">
-              <span class="chip">📂 <?= e($p['category']) ?></span>
-              <span class="chip">📍 <?= e($p['city']) ?></span>
-              <span class="chip">🎂 <?= e($p['age_group']) ?></span>
-              <span class="chip">💰 <?= e($p['budget_range']) ?></span>
-              <span class="chip">👨‍👩‍👧 <?= e($p['guardian_name']) ?></span>
+              <span class="chip">ðŸ“‚ <?= e($p['category']) ?></span>
+              <span class="chip">ðŸ“ <?= e($p['city']) ?></span>
+              <span class="chip">ðŸŽ‚ <?= e($p['age_group']) ?></span>
+              <span class="chip">ðŸ’° <?= e($p['budget_range']) ?></span>
+              <span class="chip">ðŸ‘¨â€ðŸ‘©â€ðŸ‘§ <?= e($p['guardian_name']) ?></span>
+              <?php if($isConfirmed): ?>
+              <span class="chip" style="background:#ECFDF5;border-color:#BBF7D0;color:#166534;">Completion confirmed</span>
+              <?php elseif($isRequested): ?>
+              <span class="chip" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;">Confirmation pending</span>
+              <?php endif; ?>
             </div>
           </div>
           <div class="pc-supp">
@@ -216,10 +276,10 @@ require_once __DIR__ . '/../includes/header.php';
               <div class="sa-av"><?= strtoupper(substr($p['supporter_name'],0,1)) ?></div>
               <div class="sa-inf"><?= e($p['supporter_name']) ?>
                 <small><?= e($p['supporter_email']) ?></small>
-                <?php if($p['profession']): ?><small>💼 <?= e($p['profession']) ?></small><?php endif; ?>
+                <?php if($p['profession']): ?><small>ðŸ’¼ <?= e($p['profession']) ?></small><?php endif; ?>
               </div>
             </div>
-            <span class="stype">🤲 <?= e($p['support_type']) ?></span>
+            <span class="stype">ðŸ¤² <?= e($p['support_type']) ?></span>
             <div style="font-size:.7rem;color:#6B7280;margin-top:.4rem">Matched <?= date('M j, Y', strtotime($p['matched_at'])) ?></div>
           </div>
         </div>
@@ -230,10 +290,10 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="progress-line">
             <?php foreach($stepList as $i => $step):
               $done = $i < $currIdx; $curr = $i===$currIdx; ?>
-              <?php if($i>0): ?><span class="ps-arr">→</span><?php endif; ?>
+              <?php if($i>0): ?><span class="ps-arr">â†’</span><?php endif; ?>
               <span class="ps <?= $done?'done':($curr?'curr':'todo') ?>"
                     style="<?= ($done||$curr)?'background:'.$stepColors[$step].';':'' ?>">
-                <?= $done?'✓ ':'' ?><?= $step ?>
+                <?= $done?'âœ“ ':'' ?><?= $step ?>
               </span>
             <?php endforeach; ?>
           </div>
@@ -242,14 +302,22 @@ require_once __DIR__ . '/../includes/header.php';
           <form method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="dream_id" value="<?= (int)$p['dream_id'] ?>">
             <select name="new_status" style="padding:.33rem .6rem;border:1px solid #D1D5DB;border-radius:8px;font-size:.78rem;background:#fff">
-              <?php foreach($stepList as $s): ?>
+              <?php foreach(['Matched','In Progress'] as $s): ?>
                 <option value="<?= e($s) ?>" <?= $p['dream_status']===$s?'selected':'' ?>><?= e($s) ?></option>
               <?php endforeach; ?>
+              <?php if($isConfirmed): ?>
+                <option value="Dream Achieved" <?= $p['dream_status']==='Dream Achieved'?'selected':'' ?>>Dream Achieved</option>
+              <?php endif; ?>
             </select>
             <button type="submit" class="bxs bxs-grn">Update Progress</button>
           </form>
+          <form method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="action" value="request_achievement_confirmation">
+            <input type="hidden" name="dream_id" value="<?= (int)$p['dream_id'] ?>">
+            <button type="submit" class="bxs bxs-grey"><?= $isRequested ? 'Resend confirmation email' : 'Send completion email' ?></button>
+          </form>
           <?php else: ?>
-            <span style="font-size:.8rem;color:#059669;font-weight:600">🎉 Completed!</span>
+            <span style="font-size:.8rem;color:#059669;font-weight:600">ðŸŽ‰ Completed!</span>
           <?php endif; ?>
         </div>
       </div>
@@ -258,9 +326,10 @@ require_once __DIR__ . '/../includes/header.php';
   </main>
 </div>
 
-<button class="sb-toggle" onclick="toggleSb()">☰</button>
+<button class="sb-toggle" onclick="toggleSb()">â˜°</button>
 <script>
 function toggleSb(){document.getElementById('adSb').classList.toggle('open');document.getElementById('sbOv').classList.toggle('show');}
 function closeSb(){document.getElementById('adSb').classList.remove('open');document.getElementById('sbOv').classList.remove('show');}
 </script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
+

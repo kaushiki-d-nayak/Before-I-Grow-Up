@@ -23,10 +23,16 @@ $offset   = ($page - 1) * $perPage;
 $categories = ['Skills to Learn','Creative Arts','STEM Exploration','Academic Support',
                'Language Learning','Music and Performance','Technology and Coding','Competition Preparation','Others'];
 $budgets    = ['Under ₹500','₹500-₹2,000','₹2,000-₹10,000','₹10,000+'];
-$statuses   = ['Verified','Matched','In Progress','Dream Achieved'];
+$statuses   = ['Verified'];
 
-// Build WHERE clause
-$where  = "WHERE d.status != 'Submitted'";
+// Build WHERE clause: only dreams that are still open (not adopted yet)
+$where  = "WHERE d.status = 'Verified'
+           AND NOT EXISTS (
+               SELECT 1
+               FROM dream_support ds_open
+               WHERE ds_open.dream_id = d.id
+                 AND ds_open.status = 'Approved'
+           )";
 $params = [];
 
 if ($filterCategory && in_array($filterCategory, $categories)) {

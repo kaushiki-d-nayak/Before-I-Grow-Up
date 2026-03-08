@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/mail.php';
 
 requireRole('supporter');
 
@@ -49,6 +50,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['dream_id'])) {
         VALUES (?, ?, ?, 'Pending')
     ");
     $ins->execute([$dreamId, $userId, $supportType]);
+
+    // Notify supporter that adoption request is submitted
+    $mailStmt = $db->prepare("
+        SELECT u.name AS supporter_name, u.email AS supporter_email, d.title AS dream_title
+        FROM users u
+        JOIN dream_support ds ON ds.supporter_id = u.id
+        JOIN dreams d ON ds.dream_id = d.id
+        WHERE ds.dream_id = ? AND ds.supporter_id = ?
+        ORDER BY ds.id DESC
+        LIMIT 1
+    ");
+    $mailStmt->execute([$dreamId, $userId]);
+    $m = $mailStmt->fetch();
+    if ($m && !empty($m['supporter_email'])) {
+        $subject = 'Adoption request submitted';
+        $body = '<p>Hi ' . e($m['supporter_name']) . ',</p>'
+              . '<p>Your adoption request has been submitted successfully.</p>'
+              . '<p><strong>Dream:</strong> ' . e($m['dream_title']) . '<br>'
+              . '<strong>Support type:</strong> ' . e($supportType) . '<br>'
+              . '<strong>Status:</strong> Pending admin review</p>'
+              . '<p>We will email you again once your request is approved or rejected.</p>'
+              . '<p>With care,<br>' . APP_NAME . ' team</p>';
+        if (!sendEmail($m['supporter_email'], $subject, $body)) {
+            error_log('Adoption request email failed for supporter: ' . $m['supporter_email']);
+        }
+    }
 
     // NOTE: Dream status is NOT changed here.
     // It stays 'Verified' until the admin explicitly approves this adoption request.

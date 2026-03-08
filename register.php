@@ -7,6 +7,7 @@
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/mail.php';
 
 $pageTitle = 'Register';
 $base = BASE_PATH;
@@ -21,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old = $_POST;
 
     $name     = trim($_POST['name']     ?? '');
-    $email    = trim($_POST['email']    ?? '');
+    $email    = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password']      ?? '';
     $confirm  = $_POST['confirm']       ?? '';
     $role     = $_POST['role']          ?? '';
@@ -33,8 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validation
     if (empty($name))     $errors[] = 'Full name is required.';
     if (strlen($name) < 2) $errors[] = 'Name must be at least 2 characters.';
-    if (empty($email))    $errors[] = 'Email address is required.';
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Enter a valid email address.';
+    if (empty($email)) {
+        $errors[] = 'Email address is required.';
+    } elseif (strlen($email) > 254 || preg_match('/\s/', $email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Enter a valid email address.';
+    }
     if (empty($password)) $errors[] = 'Password is required.';
     if (strlen($password) < 8) $errors[] = 'Password must be at least 8 characters.';
     if ($password !== $confirm) $errors[] = 'Passwords do not match.';
@@ -64,6 +68,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $db->commit();
+
+                // Send welcome email (non-blocking)
+                $roleLabel = $role === 'guardian' ? 'Guardian' : 'Supporter';
+                $subject = 'Welcome to ' . APP_NAME;
+                $body = '<p>Hi ' . e($name) . ',</p>'
+                      . '<p>Your <strong>' . e($roleLabel) . '</strong> account has been created successfully.</p>'
+                      . '<p>We are glad to have you with us on <strong>' . APP_NAME . '</strong>.</p>';
+                if ($role === 'guardian') {
+                    $body .= '<p>You can now submit a student dream from your dashboard.</p>';
+                } else {
+                    $body .= '<p>You can now browse open dreams and apply to support them.</p>';
+                }
+                $body .= '<p>With care,<br>' . APP_NAME . ' team</p>';
+                if (!sendEmail($email, $subject, $body)) {
+                    error_log('Welcome email failed for user: ' . $email);
+                }
 
                 // Auto-login
                 session_regenerate_id(true);
@@ -126,7 +146,13 @@ require_once __DIR__ . '/includes/header.php';
                 <label for="email">Email Address</label>
                 <input type="email" id="email" name="email" class="form-control"
                     placeholder="you@example.com"
-                    value="<?= e($old['email'] ?? '') ?>" required>
+                    value="<?= e($old['email'] ?? '') ?>"
+                    maxlength="254"
+                    inputmode="email"
+                    autocomplete="email"
+                    pattern="^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+                    title="Enter a valid email address (example: name@example.com)"
+                    required>
             </div>
 
             <div class="form-row">

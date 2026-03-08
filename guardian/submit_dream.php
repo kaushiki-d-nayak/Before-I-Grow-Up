@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/dream_achievement.php';
+require_once __DIR__ . '/../includes/mail.php';
 
 requireRole('guardian');
 
@@ -14,6 +16,8 @@ $pageTitle = 'Submit a Dream';
 $base = BASE_PATH;
 $errors = [];
 $old = [];
+$db = getDB();
+ensureDreamAchievementSchema($db);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old = $_POST;
@@ -21,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Student info
     $ageGroup  = $_POST['age_group']   ?? '';
     $city      = trim($_POST['city']   ?? '');
+    $studentEmail = trim($_POST['student_email'] ?? '');
 
     // Dream info
     $title       = trim($_POST['title']       ?? '');
@@ -31,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate
     if (!in_array($ageGroup, ['6-9','10-12','13-15','16-18'])) $errors[] = 'Please select an age group.';
     if (empty($city) || strlen($city) < 2)   $errors[] = 'Please enter the student\'s city.';
+    if ($studentEmail !== '' && !filter_var($studentEmail, FILTER_VALIDATE_EMAIL)) $errors[] = 'Please enter a valid student email address.';
     if (empty($title) || strlen($title) < 5) $errors[] = 'Dream title must be at least 5 characters.';
     if (empty($description) || strlen($description) < 30) $errors[] = 'Description must be at least 30 characters.';
 
@@ -42,12 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($budget, $validBudgets)) $errors[] = 'Please select a budget range.';
 
     if (empty($errors)) {
-        $db = getDB();
         $db->beginTransaction();
         try {
             // Insert student record
-            $stmtS = $db->prepare("INSERT INTO students (guardian_id, age_group, city) VALUES (?, ?, ?)");
-            $stmtS->execute([$_SESSION['user_id'], $ageGroup, $city]);
+            $stmtS = $db->prepare("INSERT INTO students (guardian_id, age_group, city, student_email) VALUES (?, ?, ?, ?)");
+            $stmtS->execute([$_SESSION['user_id'], $ageGroup, $city, $studentEmail !== '' ? $studentEmail : null]);
             $studentId = $db->lastInsertId();
 
             // Insert dream record
@@ -56,8 +61,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 VALUES (?, ?, ?, ?, ?, 'Submitted')
             ");
             $stmtD->execute([$studentId, $title, $description, $category, $budget]);
+            $dreamId = (int)$db->lastInsertId();
 
             $db->commit();
+
+            $guardianEmail = $_SESSION['email'] ?? '';
+            $guardianName  = $_SESSION['name'] ?? 'Guardian';
+            if ($guardianEmail !== '') {
+                $subject = 'Dream submitted successfully';
+                $body = '<p>Hi ' . e($guardianName) . ',</p>'
+                      . '<p>Your dream submission has been received and is now pending admin review.</p>'
+                      . '<p><strong>Dream:</strong> ' . e($title) . '<br>'
+                      . '<strong>Category:</strong> ' . e($category) . '<br>'
+                      . '<strong>Status:</strong> Submitted</p>'
+                      . '<p>We will notify you once it is verified.</p>'
+                      . '<p>Reference ID: #' . $dreamId . '</p>'
+                      . '<p>With care,<br>' . APP_NAME . ' team</p>';
+                if (!sendEmail($guardianEmail, $subject, $body)) {
+                    error_log('Dream submission email failed for guardian: ' . $guardianEmail);
+                }
+            }
             setFlash('success', 'Dream submitted successfully! Our admin will review it shortly. 🌱');
             redirect($base . '/guardian/my_dreams.php');
         } catch (Exception $e) {
@@ -117,6 +140,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 value="<?= e($old['city'] ?? '') ?>" required>
                             <span class="form-hint">City only — no full address needed.</span>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="student_email">Student Email (optional)</label>
+                        <input type="email" id="student_email" name="student_email" class="form-control"
+                            placeholder="student@example.com"
+                            value="<?= e($old['student_email'] ?? '') ?>">
+                        <span class="form-hint">Used only for dream completion confirmation requests.</span>
                     </div>
                 </div>
 
@@ -187,3 +217,4 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
+

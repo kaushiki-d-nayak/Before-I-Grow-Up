@@ -10,6 +10,7 @@ require_once __DIR__ . '/config/database.php';
 
 $pageTitle = 'Home';
 $base = BASE_PATH;
+$role = userRole();
 
 // Fetch 3 featured verified/matched dreams
 $db = getDB();
@@ -39,8 +40,12 @@ require_once __DIR__ . '/includes/header.php';
         <h1>Where Young <em>Dreams</em><br>Find Helping Hands</h1>
         <p class="hero-sub">A safe, moderated platform connecting students under 18 with mentors and sponsors who care — no direct contact, full guardian oversight.</p>
         <div class="hero-actions">
-            <a href="<?= $base ?>/guardian/submit_dream.php" class="btn btn-primary btn-lg">🌱 Submit a Dream</a>
+            <?php if ($role !== 'supporter'): ?>
+            <a href="<?= $base ?>/guardian/submit_dream.php" class="btn btn-primary btn-lg">🤓 Submit a Dream</a>
+            <?php endif; ?>
+            <?php if ($role !== 'guardian'): ?>
             <a href="<?= $base ?>/supporter/browse_dreams.php" class="btn btn-amber btn-lg">💛 Help a Dream</a>
+            <?php endif; ?>
         </div>
 
         <div class="hero-stats">
