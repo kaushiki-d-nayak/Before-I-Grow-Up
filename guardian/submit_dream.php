@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// guardian/submit_dream.php — Submit a new student dream
-// Place this file in: /before-i-grow-up/guardian/submit_dream.php
-// ============================================================
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../config/app.php';

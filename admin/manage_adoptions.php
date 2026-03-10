@@ -1,11 +1,4 @@
 <?php
-// admin/manage_adoptions.php
-// CORRECT FLOW:
-//   Supporter applies  → dream_support.status='Pending',  dream.status stays 'Verified'
-//   Admin APPROVES     → dream_support.status='Approved', dream.status → 'Matched'
-//   Admin REJECTS supp → dream_support.status='Rejected', dream.status → back to 'Verified'
-//                        Dream stays OPEN for other supporters to apply
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';

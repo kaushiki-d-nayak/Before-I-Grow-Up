@@ -1,6 +1,4 @@
 <?php
-// reset_password.php — Set a new password from reset link
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/database.php';

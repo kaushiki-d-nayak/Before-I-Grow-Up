@@ -1,6 +1,4 @@
 <?php
-// Helpers for post-achievement feedback collection.
-
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/validation.php';

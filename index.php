@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// index.php — Home Page
-// Place this file in: /before-i-grow-up/index.php
-// ============================================================
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/config/database.php';

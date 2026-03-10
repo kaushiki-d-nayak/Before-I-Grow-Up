@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// login.php — User Login (all roles)
-// Place this file in: /before-i-grow-up/login.php
-// ============================================================
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 require_once __DIR__ . '/config/app.php';

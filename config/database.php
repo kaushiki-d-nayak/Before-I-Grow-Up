@@ -1,10 +1,4 @@
 <?php
-// ============================================================
-// config/database.php
-// Database connection using PDO
-// Place this file in: /before-i-grow-up/config/database.php
-// ============================================================
-
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'before_i_grow_up');
 define('DB_USER', 'root');       // Change to your MySQL username

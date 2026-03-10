@@ -1,6 +1,4 @@
 <?php
-// forgot_password.php — Request password reset link
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 require_once __DIR__ . '/config/app.php';

@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// guardian/my_dreams.php — Guardian's submitted dreams tracker
-// Place this file in: /before-i-grow-up/guardian/my_dreams.php
-// ============================================================
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';

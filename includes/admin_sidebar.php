@@ -1,5 +1,4 @@
 <?php
-// Shared admin sidebar for all admin pages.
 if (!isset($base)) {
     require_once __DIR__ . '/../config/app.php';
     $base = BASE_PATH;

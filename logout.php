@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// logout.php — Destroy session and redirect
-// Place this file in: /before-i-grow-up/logout.php
-// ============================================================
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/app.php';
 

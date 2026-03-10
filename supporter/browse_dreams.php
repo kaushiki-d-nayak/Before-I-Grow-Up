@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// supporter/browse_dreams.php — Public browsable dream listings
-// Place this file in: /before-i-grow-up/supporter/browse_dreams.php
-// ============================================================
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
@@ -12,7 +7,6 @@ $pageTitle = 'Browse Dreams';
 $base = BASE_PATH;
 $db   = getDB();
 
-// Filter parameters
 $filterCategory = $_GET['category'] ?? '';
 $filterBudget   = $_GET['budget']   ?? '';
 $filterStatus   = $_GET['status']   ?? '';
@@ -25,7 +19,6 @@ $categories = ['Skills to Learn','Creative Arts','STEM Exploration','Academic Su
 $budgets    = ['No Money Needed','Under Rs500','Rs500-Rs2,000','Rs2,000-Rs10,000','Rs10,000+'];
 $statuses   = ['Verified'];
 
-// Build WHERE clause: only dreams that are still open (not adopted yet)
 $where  = "WHERE d.status = 'Verified'
            AND NOT EXISTS (
                SELECT 1

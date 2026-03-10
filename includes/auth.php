@@ -1,10 +1,4 @@
 <?php
-// ============================================================
-// includes/auth.php
-// Session management and role-based access control helpers
-// Place this file in: /before-i-grow-up/includes/auth.php
-// ============================================================
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

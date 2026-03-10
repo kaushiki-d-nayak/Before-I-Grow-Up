@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-// register.php — User Registration (guardian or supporter)
-// Place this file in: /before-i-grow-up/register.php
-// ============================================================
-
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/validation.php';
 require_once __DIR__ . '/config/app.php';

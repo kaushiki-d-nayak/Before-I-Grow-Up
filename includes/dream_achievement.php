@@ -1,6 +1,4 @@
 <?php
-// Shared helpers for dream achievement confirmation workflow.
-
 function ensureDreamAchievementSchema(PDO $db): void {
     static $ensured = false;
     if ($ensured) {
