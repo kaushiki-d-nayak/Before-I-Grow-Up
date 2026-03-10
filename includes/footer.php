@@ -25,7 +25,7 @@ $role = function_exists('userRole') ? userRole() : '';
                 </a>
                 <a class="footer-contact-card" href="tel:+919481085927">
                     <span>Phone</span>
-                    <strong>+91 9743295253</strong>
+                    <strong>+91 9481085927</strong>
                 </a>
             </div>
             <p class="footer-location">TMA Pai Polytechnic, Manipal</p>
