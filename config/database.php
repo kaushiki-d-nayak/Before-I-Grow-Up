@@ -1,14 +1,11 @@
 <?php
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'before_i_grow_up');
-define('DB_USER', 'root');       // Change to your MySQL username
-define('DB_PASS', '');           // Change to your MySQL password
+define('DB_NAME', 'growup');
+define('DB_USER', 'root');       
+define('DB_PASS', '');          
 define('DB_CHARSET', 'utf8mb4');
 
-/**
- * Returns a PDO database connection instance.
- * Uses a static variable to avoid creating multiple connections.
- */
+
 function getDB(): PDO {
     static $pdo = null;
 

@@ -95,7 +95,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="stat-pill"><div class="n"><?= $submittedCount ?></div><div class="l">Submitted</div></div>
       <div class="stat-pill"><div class="n"><?= $pendingCount ?></div><div class="l">Pending</div></div>
       <div class="stat-pill"><div class="n"><?= number_format($avgRating, 1) ?></div><div class="l">Avg Rating</div></div>
-      <div class="stat-pill"><div class="n"><?= $donationInterestCount ?></div><div class="l">Donation Interest</div></div>
+      <div class="stat-pill"><div class="n"><?= $donationInterestCount ?></div><div class="l">Donation </div></div>
     </div>
 
     <form method="GET" class="fbar">
@@ -152,7 +152,7 @@ require_once __DIR__ . '/../includes/header.php';
             <td class="review"><?= $r['review_text'] ? e(mb_substr($r['review_text'], 0, 180)) . (mb_strlen($r['review_text']) > 180 ? '...' : '') : '—' ?></td>
             <td>
               <?php if ((int)$r['donation_interest'] === 1): ?>
-                <span class="chip c-donate">Interested</span>
+                <span class="chip c-donate">donated</span>
                 <?php if (!is_null($r['donation_amount'])): ?><br><small>₹<?= number_format((float)$r['donation_amount'], 2) ?></small><?php endif; ?>
               <?php else: ?>
                 —
