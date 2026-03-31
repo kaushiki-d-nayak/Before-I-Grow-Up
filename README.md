@@ -1,48 +1,136 @@
-# Before I Grow Up 🌱
+Before I Grow Up 🌱
 
-A website where children can share their dreams and supporters can help make them come true.
+Turning childhood dreams into real achievements
 
-## What it does
+Before I Grow Up is a purpose-driven web platform where children can share their dreams, guardians can guide them, and supporters can help make those dreams come true.
+Built with care, structure, and real-world workflows, this project connects hope with action.
 
-- Kids can register and submit their dream/goal
-- Guardians can monitor and support their child
-- Supporters can donate and leave feedback
-- Email notifications via PHPMailer
-- Admin panel to manage everything
+🔗 Live Website: https://beforeigrowup.online/
 
-## Tech Used
+🌟 Key Features
 
-- PHP, MySQL
-- HTML, CSS, JavaScript
-- PHPMailer
-- WAMP Server
+👶 Children & Guardians
+Secure registration and login system
+Dream submission with structured details
+Guardians can track and manage submitted dreams
+Status updates as dreams move from idea → adoption → achievement
 
-## How to Run
+🤝 Supporters
+Browse verified dreams
+Adopt a dream and support its completion
+Confirm dream achievement
+Submit feedback after completion
 
-1. Copy the project folder to `C:\wamp64\www\phpdemo\Before-I-Grow-Up`
-2. Create a MySQL database and update credentials in `config/database.php`
-3. Start WAMP and go to `http://localhost/phpdemo/Before-I-Grow-Up/`
+🛠 Admin Panel
+Centralized dashboard for platform control
+Verify or reject submitted dreams
+Approve or reject adoption requests
+Manage users across all roles
+View matched dream–supporter pairs
+Review feedback and completion reports
+Trigger automated email notifications
 
-## Folder Structure
+📧 Email Automation
+Registration confirmations
+Dream approval or rejection updates
+Adoption confirmations
+Achievement and feedback emails
+Powered by PHPMailer
 
-```
-├── index.php               # Home page
-├── login.php               # Login
-├── register.php            # Register
-├── forgot_password.php     # Password reset
-├── config/                 # Database & app settings
-├── admin/                  # Admin panel
-├── guardian/               # Guardian pages
-├── supporter/              # Supporter/donor pages
-├── css/                    # Stylesheets
-└── PHPMailer/              # Email library
-```
+🧰 Tech Stack
 
-## Author
+Frontend
 
-**Kaushiki** — [GitHub](https://github.com/kaushiki-d-nayak)
+HTML5
+CSS3
+JavaScript
 
-> *"Every child has a dream. Before I Grow Up helps them get there."* 🌟
+Backend
+
+PHP (Core PHP, role-based architecture)
+MySQL
+
+Email
+
+PHPMailer (SMTP-based notifications)
+
+Deployment
+
+Hosted on a live production server
+Domain-connected and publicly accessible
+📂 Project Structure
+Before-I-Grow-Up/
+├── admin/
+│   ├── dashboard.php
+│   ├── manage_users.php
+│   ├── manage_dreams.php
+│   ├── manage_adoptions.php
+│   ├── matched_pairs.php
+│   └── feedback_reviews.php
+│
+├── guardian/
+│   ├── submit_dream.php
+│   └── my_dreams.php
+│
+├── supporter/
+│   ├── browse_dreams.php
+│   ├── adopt_dream.php
+│   ├── confirm_dream_achievement.php
+│   └── feedback_form.php
+│
+├── config/
+│   ├── app.php
+│   └── database.php
+│
+├── includes/
+│   ├── auth.php
+│   ├── validation.php
+│   ├── mail.php
+│   ├── header.php
+│   ├── footer.php
+│   ├── admin_sidebar.php
+│   ├── dreams_schema.php
+│   ├── dream_feedback.php
+│   └── dream_achievement.php
+│
+├── css/
+│   └── style.css
+│
+├── PHPMailer/
+│   └── (PHPMailer library files)
+│
+├── index.php
+├── login.php
+├── register.php
+├── logout.php
+├── forgot_password.php
+├── reset_password.php
+├── favicon.svg
+└── README.md
+🚀 How It Works (Flow Summary)
+A child (via guardian) submits a dream
+Admin verifies the dream
+Supporters browse and adopt dreams
+Dream gets fulfilled
+Supporter confirms achievement
+Feedback is collected
+Admin reviews and archives completion
+
+Every step is authenticated, validated, and logged.
+
+🛡 Security & Validation
+Session-based authentication
+Role-based access control (Admin / Guardian / Supporter)
+Centralized input validation
+Protected admin routes
+Secure password reset flow
+👩‍💻 Author
+
+Kaushiki
+GitHub: https://github.com/kaushiki-d-nayak
+
+Every child has a dream.
+Before I Grow Up helps turn those dreams into milestones. 🌟
 
 # images
 
