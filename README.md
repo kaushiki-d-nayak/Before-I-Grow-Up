@@ -59,7 +59,7 @@ Built with care, structure, and real-world workflows, this project connects hope
 | Backend | PHP (Core PHP, role-based architecture) |
 | Database | MySQL |
 | Email | PHPMailer (SMTP-based notifications) |
-| Deployment | Live production server, domain-connected |
+| Deployment | AWS , domain-connected |
 
 ---
 
