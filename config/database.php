@@ -1,5 +1,5 @@
 <?php
-define('DB_HOST', 'growup.cxow6ick8ko3.ap-south-1.rds.amazonaws.com');
+define('DB_HOST', 'growup2.cxow6ick8ko3.ap-south-1.rds.amazonaws.com');
 define('DB_NAME', 'growup');
 define('DB_USER', 'admin');       
 define('DB_PASS', 'kaushiki123');          
